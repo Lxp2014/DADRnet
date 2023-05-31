@@ -56,7 +56,7 @@ display_delta = total_steps % opt.display_freq
 print_delta = total_steps % opt.print_freq
 save_delta = total_steps % opt.save_latest_freq
 
-for epoch in range(start_epoch, opt.niter + opt.niter_decay + 1):
+for epoch in range(61, opt.niter + opt.niter_decay + 1):
     epoch_start_time = time.time()
     if epoch != start_epoch:
         epoch_iter = epoch_iter % dataset_size
@@ -69,59 +69,104 @@ for epoch in range(start_epoch, opt.niter + opt.niter_decay + 1):
         save_fake = total_steps % opt.display_freq == display_delta
 
         ############## Forward Pass ######################
+        # newpath = '/home/dsplxp/code/code/dehaze/Bringing-Old-Photos-Back-to-Life-master/Global/savehaze/'
+        # img.save(newpath + 'haze.png')
 
-        losses, fake_image_sys, fake_image_real, fake_image_real_dehaze , fake_image_sys2real, fake_image_real2sys = model(Variable(data['label']), Variable(data['inst']), Variable(data['image']), Variable(data['feat']), Variable(data['real']), Variable(data['density_syn']), Variable(data['density_gt']), Variable(data['density_real']), infer=save_fake)
-
+        losses, generated, fake_image_clean, fake_image_real = model(Variable(data['label']), Variable(data['inst']), Variable(data['image']), Variable(data['feat']), Variable(data['real']), infer=save_fake)
         # sum per device losses
         losses = [torch.mean(x) if not isinstance(x, int) else x for x in losses]
         loss_dict = dict(zip(model.module.loss_names, losses))
-        loss_D_feat = (loss_dict['D_feat_fake'] + loss_dict['D_feat_real']) * 0.5
-        loss_D_feat_gt = (loss_dict['D_feat_gt_fake'] + loss_dict['D_feat_gt_real']) * 0.5
-        loss_D_sysrec = (loss_dict['D_sysrec_fake'] + loss_dict['D_sysrec_real']) * 0.5
-        loss_D_realrec = (loss_dict['D_realrec_fake'] + loss_dict['D_realrec_real']) * 0.5
-        loss_D_sys2realrec = (loss_dict['D_sys2realrec_fake'] + loss_dict['D_sys2realrec_real']) * 0.5
-        loss_D_real2sysrec = (loss_dict['D_real2sysrec_fake'] + loss_dict['D_real2sysrec_real']) * 0.5
 
-        if epoch > 10:
-            loss_G = loss_dict['dif']  + loss_dict['sys_rec'] + loss_dict['real_rec'] + loss_dict['G_sysrec_GAN'] + loss_dict['G_feat'] + \
-                 loss_dict['G_realrec_GAN']  + loss_dict['G_GAN_Feat_sysrec'] + loss_dict['G_GAN_Feat_realrec'] + loss_dict['G_sys2realrec_GAN'] + loss_dict['G_real2sysrec_GAN'] + loss_dict['similiar'] + loss_dict['G_feat_gt'] + loss_dict['G_GAN_Feat_gt']  + loss_dict['dark_channel'] + loss_dict['total_variation']
-
-            model.module.optimizer_feat_D_gt.zero_grad()
-            loss_D_feat_gt.backward()
-            model.module.optimizer_feat_D_gt.step()
-
-        else:
-            loss_G = loss_dict['dif'] + loss_dict['sys_rec'] + loss_dict['real_rec'] + loss_dict['G_sysrec_GAN'] + loss_dict['G_feat'] +\
-                     loss_dict['G_realrec_GAN'] + loss_dict['G_GAN_Feat_sysrec'] + loss_dict['G_GAN_Feat_realrec'] + loss_dict['G_sys2realrec_GAN'] + loss_dict['G_real2sysrec_GAN']
+        # calculate final loss scalar
+        '''if epoch > 120:
+                                    loss_G = loss_dict['loss_step2']
+                                    model.module.optimizer_mapping.zero_grad()
+                                    loss_G.backward()
+                                    model.module.optimizer_mapping.step()'''
 
 
-        model.module.optimizer_IG.zero_grad()
-        loss_G.backward()
-        model.module.optimizer_IG.step()
+        if epoch> 60:
+            loss_D = (loss_dict['D_fake'] + loss_dict['D_real']) * 0.5
+            loss_D_real = (loss_dict['D_fake_real'] + loss_dict['D_real_real']) * 0.5
+            loss_featD = (loss_dict['featD_fake'] + loss_dict['featD_real']) * 0.5
+            loss_G = loss_dict['G_GAN'] + loss_dict['G_GAN_real'] + loss_dict.get('G_GAN_Feat', 0) + loss_dict.get('G_GAN_Feat_real', 0) + loss_dict.get('G_VGG', 0) + loss_dict.get('G_VGG_real', 0) + loss_dict['G_KL'] + loss_dict['G_KL_real'] + loss_dict['G_featD'] + loss_dict['G_GAN_dec'] + loss_dict['G_GAN_Feat_dec'] + loss_dict['G_VGG_dec'] + loss_dict['G_GAN_Feat_dec'] +loss_dict['smooth_l1_loss'] + loss_dict['Diff'] + loss_dict['loss_gt'] + loss_dict['loss_G_featD_real']+loss_dict['loss_G_GAN_gt2real']
+            loss_D_dec = loss_dict['D_real_dec'] + loss_dict['D_fake_dec']
+            loss_D_gt2real = loss_dict['loss_step2_gt2real']
+            loss_D_real2gt = loss_dict['loss_step2_gtandreal']
+            model.module.optimizer_G.zero_grad()
+            model.module.optimizer_PSG.zero_grad()
+            model.module.optimizer_PRG.zero_grad()
+            loss_G.backward()
+            model.module.optimizer_G.step()
+            model.module.optimizer_PSG.step()
+            model.module.optimizer_PRG.step()
 
-        model.module.optimizer_feat_D.zero_grad()
-        loss_D_feat.backward()
-        model.module.optimizer_feat_D.step()
+            # update discriminator weights
+            model.module.optimizer_D.zero_grad()
+            loss_D.backward()
+            model.module.optimizer_D.step()
 
-        model.module.optimizer_sys_rec_netD.zero_grad()
-        loss_D_sysrec.backward()
-        model.module.optimizer_sys_rec_netD.step()
+            model.module.optimizer_D_real.zero_grad()
+            loss_D_real.backward()
+            model.module.optimizer_D_real.step()
 
-        model.module.optimizer_real_rec_netD.zero_grad()
-        loss_D_realrec.backward()
-        model.module.optimizer_real_rec_netD.step()
+            model.module.optimizer_featD.zero_grad()
+            loss_featD.backward()
+            model.module.optimizer_featD.step()
 
-        model.module.optimizer_sys2real_rec_netD.zero_grad()
-        loss_D_sys2realrec.backward()
-        model.module.optimizer_sys2real_rec_netD.step()
+            model.module.optimizer_D_dec.zero_grad()
+            loss_D_dec.backward()
+            model.module.optimizer_D_dec.step()
 
-        model.module.optimizer_real2sys_rec_netD.zero_grad()
-        loss_D_real2sysrec.backward()
-        model.module.optimizer_real2sys_rec_netD.step()
+            model.module.optimizer_D_gt2real.zero_grad()
+            loss_D_gt2real.backward()
+            model.module.optimizer_D_gt2real.step()
+
+            model.module.optimizer_D_real2gt.zero_grad()
+            loss_D_real2gt.backward()
+            model.module.optimizer_D_real2gt.step()
+
+
+        else :
+            loss_D = (loss_dict['D_fake'] + loss_dict['D_real']) * 0.5
+            loss_D_real = (loss_dict['D_fake_real'] + loss_dict['D_real_real']) * 0.5
+            loss_featD = (loss_dict['featD_fake'] + loss_dict['featD_real']) * 0.5
+
+            loss_G = loss_dict['G_GAN'] + loss_dict['G_GAN_real'] + loss_dict.get('G_GAN_Feat', 0) + loss_dict.get(
+                'G_GAN_Feat_real', 0) + loss_dict.get('G_VGG', 0) + loss_dict.get('G_VGG_real', 0) + loss_dict['G_KL'] + loss_dict['G_KL_real'] + loss_dict['G_featD'] + loss_dict['G_GAN_dec'] + loss_dict[
+                         'G_GAN_Feat_dec'] + loss_dict['G_VGG_dec'] + loss_dict['G_GAN_Feat_dec'] + loss_dict[
+                         'smooth_l1_loss'] + loss_dict['Diff']
+
+            loss_D_dec = loss_dict['D_real_dec'] + loss_dict['D_fake_dec']
+            model.module.optimizer_G.zero_grad()
+            model.module.optimizer_PSG.zero_grad()
+            model.module.optimizer_PRG.zero_grad()
+            loss_G.backward()
+            model.module.optimizer_G.step()
+            model.module.optimizer_PSG.step()
+            model.module.optimizer_PRG.step()
+
+            # update discriminator weights
+            model.module.optimizer_D.zero_grad()
+            loss_D.backward()
+            model.module.optimizer_D.step()
+
+            model.module.optimizer_D_real.zero_grad()
+            loss_D_real.backward()
+            model.module.optimizer_D_real.step()
+
+            model.module.optimizer_featD.zero_grad()
+            loss_featD.backward()
+            model.module.optimizer_featD.step()
+
+            model.module.optimizer_D_dec.zero_grad()
+            loss_D_dec.backward()
+            model.module.optimizer_D_dec.step()
+
+
 
 
         # call(["nvidia-smi", "--format=csv", "--query-gpu=memory.used,memory.free"])
-
 
         ############## Display results and errors ##########
         ### print out errors
@@ -137,16 +182,14 @@ for epoch in range(start_epoch, opt.niter + opt.niter_decay + 1):
             if not os.path.exists(opt.outputs_dir + opt.name):
                 os.makedirs(opt.outputs_dir + opt.name)
             imgs_num = data['label'].shape[0]
-            imgs = torch.cat((data['label'], fake_image_sys.data.cpu(), data['image'], data['real'], fake_image_real.data.cpu(), fake_image_real_dehaze.data.cpu(), fake_image_sys2real.data.cpu(), fake_image_real2sys.data.cpu()), 0)
+            imgs = torch.cat((data['label'], generated.data.cpu(), data['image'],fake_image_clean.data.cpu(), data['real'], fake_image_real.data.cpu()), 0)
+
             imgs = (imgs + 1.) / 2.0
 
             try:
                 image_grid = vutils.save_image(imgs, opt.outputs_dir + opt.name + '/' + str(epoch) + '_' + str(
                     total_steps) + '.png',
-                                               nrow=imgs_num, padding=0, normalize=False)
-
-
-
+                                               nrow=imgs_num, padding=0, normalize=True)
             except OSError as err:
                 print(err)
 
@@ -173,5 +216,4 @@ for epoch in range(start_epoch, opt.niter + opt.niter_decay + 1):
     ### linearly decay learning rate after certain iterations
     if epoch > opt.niter:
         model.module.update_learning_rate()
-
 

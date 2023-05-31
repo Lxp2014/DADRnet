@@ -51,9 +51,6 @@ class BaseOptions:
         self.parser.add_argument("--label_nc", type=int, default=35, help="# of input label channels")
         self.parser.add_argument("--input_nc", type=int, default=3, help="# of input image channels")
         self.parser.add_argument("--output_nc", type=int, default=3, help="# of output image channels")
-        self.parser.add_argument("--output_nc_density", type=int, default=1, help="# of output haze density")
-
-
 
         # for setting inputs
         self.parser.add_argument("--dataroot", type=str, default="./datasets/cityscapes/")

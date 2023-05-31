@@ -48,7 +48,7 @@ def print_network(net):
 
 def define_G(input_nc, output_nc, ngf, netG, k_size=3, n_downsample_global=3, n_blocks_global=9, n_local_enhancers=1,
              n_blocks_local=3, norm='instance', gpu_ids=[], opt=None):
-
+    
     norm_layer = get_norm_layer(norm_type=norm)
     if netG == 'global':
         # if opt.self_gen:
@@ -68,153 +68,12 @@ def define_G(input_nc, output_nc, ngf, netG, k_size=3, n_downsample_global=3, n_
 def define_D(input_nc, ndf, n_layers_D, opt, norm='instance', use_sigmoid=False, num_D=1, getIntermFeat=False, gpu_ids=[]):
     norm_layer = get_norm_layer(norm_type=norm)
     netD = MultiscaleDiscriminator(input_nc, opt, ndf, n_layers_D, norm_layer, use_sigmoid, num_D, getIntermFeat)
-
+    
     if len(gpu_ids) > 0:
         assert(torch.cuda.is_available())
         netD.cuda(gpu_ids[0])
     netD.apply(weights_init)
     return netD
-
-def define_featureD(input_nc, n_layers=2, norm='batch', activation='PReLU', init_type='xavier', gpu_ids=[]):
-    netD_feat = _FeatureDiscriminator(input_nc, n_layers, norm, activation, gpu_ids)
-    if len(gpu_ids) > 0:
-        assert(torch.cuda.is_available())
-        netD_feat.cuda(gpu_ids[0])
-    netD_feat.apply(weights_init)
-    return netD_feat
-
-def define_rec(output_nc, ngf, netG, k_size=3, n_downsample_global=3, n_blocks_global=9, norm='instance', gpu_ids=[], opt=None):
-    norm_layer = get_norm_layer(norm_type=norm)
-    if netG == 'global':
-        if opt.use_v2:
-            netG = Global_rec(output_nc, ngf, k_size, n_downsample_global, norm_layer, opt=opt)
-        else:
-            netG = Global_rec(output_nc, ngf, k_size, n_downsample_global, n_blocks_global,
-                                      norm_layer, opt=opt)
-    else:
-        raise ('generator not implemented!')
-    if len(gpu_ids) > 0:
-        assert (torch.cuda.is_available())
-        netG.cuda(gpu_ids[0])
-    netG.apply(weights_init)
-    return netG
-
-
-class Global_rec(nn.Module):
-    def __init__(
-        self,
-        output_nc,
-        ngf=64,
-        k_size=3,
-        n_downsampling=8,
-        norm_layer=nn.BatchNorm2d,
-        padding_type="reflect",
-        opt=None,
-    ):
-        super(Global_rec, self).__init__()
-        activation = nn.ReLU(True)
-
-        # decode
-        model = []
-        if opt.feat_dim > 0:
-            model += [nn.Conv2d(opt.feat_dim, min(ngf * mult * 2, opt.mc), 1, 1)]
-        # model += [nn.Conv2d(min(ngf, opt.mc), min(ngf * mult * 2, opt.mc), 1, 1)]
-        o_pad = 0 if k_size == 4 else 1
-        mult = 2 ** n_downsampling
-        model += [
-            ResnetBlock(
-                min(ngf * mult, opt.mc),
-                padding_type=padding_type,
-                activation=activation,
-                norm_layer=norm_layer,
-                opt=opt,
-            )
-        ]
-
-        if opt.spatio_size == 32:
-            model += [
-                nn.ConvTranspose2d(
-                    min(ngf * mult, opt.mc),
-                    min(int(ngf * mult / 2), opt.mc),
-                    kernel_size=k_size,
-                    stride=2,
-                    padding=1,
-                    output_padding=o_pad,
-                ),
-                norm_layer(min(int(ngf * mult / 2), opt.mc)),
-                activation,
-            ]
-        if opt.spatio_size == 64:
-            model += [
-                ResnetBlock(
-                    min(ngf * mult, opt.mc),
-                    padding_type=padding_type,
-                    activation=activation,
-                    norm_layer=norm_layer,
-                    opt=opt,
-                )
-            ]
-
-        for i in range(1, n_downsampling - opt.start_r):
-            mult = 2 ** (n_downsampling - i)
-            model += [
-                ResnetBlock(
-                    min(ngf * mult, opt.mc),
-                    padding_type=padding_type,
-                    activation=activation,
-                    norm_layer=norm_layer,
-                    opt=opt,
-                )
-            ]
-            model += [
-                ResnetBlock(
-                    min(ngf * mult, opt.mc),
-                    padding_type=padding_type,
-                    activation=activation,
-                    norm_layer=norm_layer,
-                    opt=opt,
-                )
-            ]
-            model += [
-                nn.ConvTranspose2d(
-                    min(ngf * mult, opt.mc),
-                    min(int(ngf * mult / 2), opt.mc),
-                    kernel_size=k_size,
-                    stride=2,
-                    padding=1,
-                    output_padding=o_pad,
-                ),
-                norm_layer(min(int(ngf * mult / 2), opt.mc)),
-                activation,
-            ]
-        for i in range(n_downsampling - opt.start_r, n_downsampling):
-            mult = 2 ** (n_downsampling - i)
-            model += [
-                nn.ConvTranspose2d(
-                    min(ngf * mult, opt.mc),
-                    min(int(ngf * mult / 2), opt.mc),
-                    kernel_size=k_size,
-                    stride=2,
-                    padding=1,
-                    output_padding=o_pad,
-                ),
-                norm_layer(min(int(ngf * mult / 2), opt.mc)),
-                activation,
-            ]
-        if opt.use_segmentation_model:
-            model += [nn.ReflectionPad2d(3), nn.Conv2d(min(ngf, opt.mc), output_nc, kernel_size=7, padding=0)]
-        else:
-            model += [
-                nn.ReflectionPad2d(3),
-                nn.Conv2d(min(ngf, opt.mc), output_nc, kernel_size=7, padding=0),
-                nn.Tanh(),
-            ]
-        self.decoder = nn.Sequential(*model)
-
-    def forward(self, input):
-        return self.decoder(input)
-
-
 
 
 
@@ -232,7 +91,6 @@ class GlobalGenerator_DCDCv2(nn.Module):
     ):
         super(GlobalGenerator_DCDCv2, self).__init__()
         activation = nn.ReLU(True)
-
 
         model = [
             nn.ReflectionPad2d(3),
@@ -846,54 +704,7 @@ class NLayerDiscriminator(nn.Module):
         else:
             return self.model(input)
 
-def get_nonlinearity_layer(activation_type='PReLU'):
-    if activation_type == 'ReLU':
-        nonlinearity_layer = nn.ReLU(True)
-    elif activation_type == 'SELU':
-        nonlinearity_layer = nn.SELU(True)
-    elif activation_type == 'LeakyReLU':
-        nonlinearity_layer = nn.LeakyReLU(0.1, True)
-    elif activation_type == 'PReLU':
-        nonlinearity_layer = nn.PReLU()
-    else:
-        raise NotImplementedError('activation layer [%s] is not found' % activation_type)
-    return nonlinearity_layer
 
-class _FeatureDiscriminator(nn.Module):
-    def __init__(self, input_nc, n_layers=2, norm='batch', activation='PReLU', gpu_ids=[]):
-        super(_FeatureDiscriminator, self).__init__()
-
-        self.gpu_ids = gpu_ids
-
-        norm_layer = get_norm_layer(norm_type=norm)
-        nonlinearity = get_nonlinearity_layer(activation_type=activation)
-
-        if type(norm_layer) == functools.partial:
-            use_bias = norm_layer.func == nn.InstanceNorm2d
-        else:
-            use_bias = norm_layer == nn.InstanceNorm2d
-
-        model = [
-            nn.Linear(input_nc * 64 * 64, input_nc),
-            nonlinearity,
-        ]
-
-        for i in range(1, n_layers):
-            model +=[
-                nn.Linear(input_nc, input_nc),
-                nonlinearity
-            ]
-
-        model +=[nn.Linear(input_nc, 1)]
-
-        self.model = nn.Sequential(*model)
-
-    def forward(self, input):
-        # result = []
-        input = input.view(-1, 128 * 64 * 64)
-        output = self.model(input)
-        # result.append(output)
-        return output
 
 ##############################################################################
 # Losses
@@ -943,18 +754,7 @@ class GANLoss(nn.Module):
             return self.loss(input[-1], target_tensor)
 
 
-class L1_TVLoss_Charbonnier(nn.Module):
-    def __init__(self):
-        super(L1_TVLoss_Charbonnier, self).__init__()
-        self.e = 0.000001 ** 2
 
-    def forward(self, x):
-        batch_size = x.size()[0]
-        h_tv = torch.abs((x[:, :, 1:, :]-x[:, :, :-1, :]))
-        h_tv = torch.mean(torch.sqrt(h_tv ** 2 + self.e))
-        w_tv = torch.abs((x[:, :, :, 1:]-x[:, :, :, :-1]))
-        w_tv = torch.mean(torch.sqrt(w_tv ** 2 + self.e))
-        return h_tv + w_tv
 
 ####################################### VGG Loss
 
@@ -1005,91 +805,23 @@ class VGGLoss_torch(nn.Module):
             loss += self.weights[i] * self.criterion(x_vgg[i], y_vgg[i].detach())
         return loss
 
-class VGGLoss_style(nn.Module):
-    def __init__(self, gpu_ids):
-        super(VGGLoss_style, self).__init__()
-        self.vgg = VGG19_torch().cuda()
-        self.criterion = nn.MSELoss()
-        #self.weights = [1.0/32, 1.0/16, 1.0/8, 1.0/4, 1.0]
-    
-    def gram(self, x):
-        (bs, ch, h, w) = x.size()
-        f = x.view(bs, ch, w*h)
-        f_T = f.transpose(1, 2)
-        G = f.bmm(f_T) / (ch * h * w)
-        return G
-    
-    def gram_matrix(self, inputs):
-        """Gram matrix."""                  # https://github.com/Zhenye-Na/neural-style-pytorch/blob/ea14860e3ae7897c43bb466bc26ee2474a1b7e45/src/loss.py#L17
-        a, b, c, d = inputs.size()
-        # resise F_XL into \hat F_XL
-        features = inputs.view(a * b, c * d)
-        # compute the gram product
-        G = torch.mm(features, features.t())
-        return G.div(a * b * c * d)
-
-    def forward(self, x, y):
-        x_vgg, y_vgg = self.vgg(x), self.vgg(y)
-        x_gram = [self.gram_matrix(fmap) for fmap in x_vgg]
-        y_gram = [self.gram_matrix(fmap) for fmap in y_vgg]                                      # but if content loss, only conv4 is needed.
-        loss = 0
-        for i in range(len(x_gram)):
-            loss += self.criterion(x_gram[i], y_gram[i].detach())              # we detach the target from contamination.
-        return loss
-
-class VGGLoss_content(nn.Module):
-    def __init__(self, gpu_ids):
-        super(VGGLoss_content, self).__init__()
-        self.vgg = VGG19_torch().cuda()
-        self.criterion = nn.MSELoss()
-        #self.weights = [1.0/32, 1.0/16, 1.0/8, 1.0/4, 1.0]
-    
-    def forward(self, x, y):
-        x_vgg, y_vgg = self.vgg(x), self.vgg(y)
-        #x_gram = [self.gram_matrix(fmap) for fmap in x_vgg]
-        #y_gram = [self.gram_matrix(fmap) for fmap in y_vgg]                                      # but if content loss, only conv4 is needed.
-        loss = self.criterion(x_vgg[3], y_vgg[3].detach())                    # we detach the target from contamination.
-        return loss
-
 class DiffLoss(nn.Module):
 
     def __init__(self):
         super(DiffLoss, self).__init__()
 
-    def forward(self, private_samples, shared_samples):
+    def forward(self, input1, input2):
 
-        batch_size = private_samples.size(0)
-        private_samples = private_samples.view(batch_size, -1)
-        shared_samples = shared_samples.view(batch_size, -1)
+        batch_size = input1.size(0)
+        input1 = input1.view(batch_size, -1)
+        input2 = input2.view(batch_size, -1)
 
-        private_mean = torch.mean(private_samples, dim=0)
-        shared_mean = torch.mean(shared_samples, dim=0)
+        input1_l2_norm = torch.norm(input1, p=2, dim=1, keepdim=True).detach()
+        input1_l2 = input1.div(input1_l2_norm.expand_as(input1) + 1e-6)
 
-        private_diff = private_samples - private_mean
-        shared_diff = shared_samples - shared_mean
+        input2_l2_norm = torch.norm(input2, p=2, dim=1, keepdim=True).detach()
+        input2_l2 = input2.div(input2_l2_norm.expand_as(input2) + 1e-6)
 
-        private_samples_norm = torch.nn.functional.normalize(private_diff, p=2, dim=1)
-        shared_samples_norm = torch.nn.functional.normalize(shared_diff, p=2, dim=1)
+        diff_loss = torch.mean((input1_l2.mm(input2_l2.t()).pow(2)))
 
-        diff_loss = torch.mean((private_samples_norm.mm(shared_samples_norm.t())).pow(2))
-
-        return diff_loss
-
-class Diff3D(nn.Module):
-
-    def __init__(self):
-        super(Diff3D, self).__init__()
-
-    def forward(self, private_samples, shared_samples):
-        C1 = private_samples
-        C2 = shared_samples.permute(0, 1, 3, 2)
-        W1 = private_samples.permute(0, 2, 1, 3)
-        W2 = private_samples.permute(0, 2, 3, 1)
-        H1 = private_samples.permute(0, 3, 2, 1)
-        H2 = private_samples.permute(0, 3, 1, 2)
-
-        diff_loss_C = torch.matmul(C1, C2)
-        diff_loss_W = torch.matmul(W1, W2)
-        diff_loss_H = torch.matmul(H1, H2)
-        diff_loss = torch.mean(diff_loss_C.pow(2)) + torch.mean(diff_loss_W.pow(2)) + torch.mean(diff_loss_H.pow(2))
         return diff_loss

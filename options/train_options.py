@@ -19,17 +19,11 @@ class TrainOptions(BaseOptions):
         # self.parser.add_argument('--load_pretrain', type=str, default='', help='load the pretrained model from the specified location')
         self.parser.add_argument('--which_epoch', type=str, default='latest', help='which epoch to load? set to latest to use latest cached model')
         self.parser.add_argument('--phase', type=str, default='train', help='train, val, test, etc')
-        self.parser.add_argument('--niter', type=int, default=50, help='# of iter at starting learning rate')
-        self.parser.add_argument('--niter_decay', type=int, default=50, help='# of iter to linearly decay learning rate to zero')
+        self.parser.add_argument('--niter', type=int, default=100, help='# of iter at starting learning rate')
+        self.parser.add_argument('--niter_decay', type=int, default=200, help='# of iter to linearly decay learning rate to zero')
         self.parser.add_argument('--beta1', type=float, default=0.5, help='momentum term of adam')
         self.parser.add_argument('--lr', type=float, default=0.0002, help='initial learning rate for adam')
-        self.parser.add_argument('--lr_D', type=float, default=1.2, help='initial learning rate for adam')
         self.parser.add_argument('--training_dataset',type=str,default='',help='training use which dataset')
-
-        # weight for centain losses
-        self.parser.add_argument('--lambda_DC', type=float, default=0.5, help='weight for dark channel loss')
-        self.parser.add_argument('--lambda_TV', type=float, default=1.0, help='weight for total variational loss')
-        self.parser.add_argument('--lambda_dehaze', type=float, default=1.0, help='weight for dehaze loss')
 
         # for discriminators        
         self.parser.add_argument('--num_D', type=int, default=2, help='number of discriminators to use')

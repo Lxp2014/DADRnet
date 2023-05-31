@@ -78,11 +78,6 @@ class TestOptions(BaseOptions):
         self.parser.add_argument(
             "--test_input", type=str, default="", help="A directory or a root of bigfile"
         )
-
-        self.parser.add_argument(
-            "--test_input_density", type=str, default="", help="A directory or a root of bigfile"
-        )
-
         self.parser.add_argument("--test_mask", type=str, default="", help="A directory or a root of bigfile")
         self.parser.add_argument("--test_gt", type=str, default="", help="A directory or a root of bigfile")
 
